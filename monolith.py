@@ -3,6 +3,7 @@ import json
 import numpy as np
 import sys
 from sklearn.model_selection import train_test_split
+import random
 
 def filter_identity(commander_name, cards):
 	commander_identity = set(cards[cards.name == commander_name]['colorIdentity'].iloc[0].split(', '))
@@ -173,6 +174,20 @@ class SimpleLinearRegression:
     def predict(self, x):
         return self.intercept_ + self.slope_ * x
 	
+pd.set_option('display.max_columns', None)
+pd.set_option('display.max_rows', None)
+cards = pd.read_csv('./cards.csv')
+cards = cards[cards.availability.str.contains('paper')].drop_duplicates(subset='name', keep='last')
+cards = cards[~cards.types.str.contains('Land')]
+cards = cards[~cards.text.isnull()]
+cards = cards[['name', 'colorIdentity', 'keywords', 'text', 'edhrecRank', 'manaValue', 'uuid', 'availability', 'isOnlineOnly', 'isTextless']]
+cards['edhrecRank'] = cards['edhrecRank'].fillna(cards['edhrecRank'].max())
+
+#drops ehrec ranks that don't exist
+df = cards[cards.edhrecRank != -1]
+#converts edhrec to a np array and then creates a random sim score for each row loosely based on edhrec
+df_edhrec = np.array(df['edhrecRank'].tolist())
+df_sim_score = [0.75 * x + random.gauss(0, 10) for x in df_edhrec]
 #splits data into test and validation sets, 75% training, 25% validation
 Xtrain, Xval, ytrain, yval = train_test_split(df_edhrec, df_sim_score, test_size=0.25, random_state=42)
 
@@ -227,15 +242,6 @@ def k_fold_cross_validation(model, Xtrain, ytrain, k):
 #prints predicted values versus actual values
 for x in range(5):
     print(f'predicted: {preds.iloc[x, 0]}, actual: {yval.iloc[x, 0]}')
-
-pd.set_option('display.max_columns', None)
-pd.set_option('display.max_rows', None)
-cards = pd.read_csv('./cards.csv')
-cards = cards[cards.availability.str.contains('paper')].drop_duplicates(subset='name', keep='last')
-cards = cards[~cards.types.str.contains('Land')]
-cards = cards[~cards.text.isnull()]
-cards = cards[['name', 'colorIdentity', 'keywords', 'text', 'edhrecRank', 'manaValue', 'uuid', 'availability', 'isOnlineOnly', 'isTextless']]
-cards['edhrecRank'] = cards['edhrecRank'].fillna(cards['edhrecRank'].max())
 
 print("Total card count for commander legality: {}".format(len(cards.index)))
 
