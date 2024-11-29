@@ -26,7 +26,7 @@
                         <li class="list-group-item list-group-item-action">Teshar</li>
                         <li class="list-group-item list-group-item-action">Zeriam</li>
                         <li class="list-group-item list-group-item-action">Mavinda</li>
-                        <li class="list-group-item list-group-item-action">Reya</li>
+                        <li class="list-group-item list-group-item-action">Grey Knight Paragon</li>
                     </ul>
                 </div>
             </div>
@@ -76,19 +76,28 @@
                 fetch('/getcard', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json' 
+                        'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({'cardname': item.textContent})
+                    body: JSON.stringify({ 'cardname': item.textContent })
+                }).then(response => {
+
+                    if (!response.ok) {
+                        return response.json().then(err => Promise.reject(err));
+                    }
+                    return response.json(); // Parse JSON if successful
+                }).then(result => {
+                    console.log(result)
+                    //update selected card field
+                    document.getElementById('cardname').innerHTML = result.cardname;
+                    document.getElementById('cardtypes').innerHTML = result.types;
+                    document.getElementById('manacost').innerHTML = result.manacost;
+                    document.getElementById('cardtext').innerHTML = result.cardtext;
+                    document.getElementById('edhrecprediction').innerHTML = result.edhrec;
                 })
 
 
 
-                //update selected card field
-                document.getElementById('cardname').innerHTML = returnedCard.cardname;
-                document.getElementById('cardtypes').innerHTML = returnedCard.cardtypes;
-                document.getElementById('manacost').innerHTML = returnedCard.manacost;
-                document.getElementById('cardtext').innerHTML = returnedCard.cardtext;
-                document.getElementById('edhrecprediction').innerHTML = returnedCard.edhrec;
+
             });
         });
     });
