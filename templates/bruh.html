@@ -8,10 +8,7 @@
 </head>
 
 <body>
-    <h1>Main document I think</h1>
-    <h2>GRRR</h2>
-    <button class="btn btn-danger">Danger!</button>
-    <div class="container">
+    <div class="container" style="margin-top: 100px;">
         <div class="row">
             <div class="col-sm border">
                 <div>
@@ -20,24 +17,18 @@
                 </div>
 
                 <div class="row">
-                    <input type="text" class=" form-control" placeholder="commander name" />
-                    <button type="button" class="btn btn-primary">submit</button>
-                    <ul class="list-group" style="max-height: 500px;overflow:scroll;">
-                        <li class="list-group-item list-group-item-action">Teshar</li>
-                        <li class="list-group-item list-group-item-action">Zeriam</li>
-                        <li class="list-group-item list-group-item-action">Mavinda</li>
-                        <li class="list-group-item list-group-item-action">Grey Knight Paragon</li>
+                    <input type="text" class="form-control commander_input" id="commander_input"
+                        placeholder="commander name" />
+                    <button type="button" class="btn btn-primary commander_submit" id="commander_submit">submit</button>
+                    <ul class="list-group related_cards_list" style="max-height: 500px;overflow:scroll;">
+                        
                     </ul>
                 </div>
             </div>
-            <div class="col-sm col-sm border">
+            <div class="col-sm col-sm border testing">
                 <h5>Results</h3>
                     <h4>Upcomming Recommendations</h2>
-                        <ul class="list-group" style="max-height: 500px;overflow:scroll;">
-                            <li class="list-group-item list-group-item-action">Overlod</li>
-                            <li class="list-group-item list-group-item-action">Sheltered</li>
-                            <li class="list-group-item list-group-item-action">Shepherding</li>
-                            <li class="list-group-item list-group-item-action">Trapped</li>
+                        <ul class="list-group recommended_cards_list" style="max-height: 500px;overflow:scroll;">
 
                         </ul>
             </div>
@@ -49,6 +40,8 @@
                     <p id=cardtext></p>
                     <br>
                     <br>
+                    <Label>EDHRec: <b id='edhrec'></b></Label>
+                    <br>
                     <Label>EDHRec Prediction: <b id='edhrecprediction'></b></Label>
             </div>
         </div>
@@ -57,21 +50,136 @@
 </body>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        //select all list items
-        const listItems = document.querySelectorAll('.list-group-item-action');
+        //Adds functionality to submit button for commander name
+        const subCommander = document.querySelector('.commander_submit');
+        subCommander.addEventListener('click', function (event) {
+            event.preventDefault();
+            commander_name = document.querySelector('.commander_input').value;
+
+            fetch('/submitcommander', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ 'commander_name': commander_name })
+            }).then(response => {
+
+                if (!response.ok) {
+                    return response.json().then(err => Promise.reject(err));
+                }
+                return response.json(); // Parse JSON if successful
+            }).then(result => {
+                console.log(result)
+
+                let related_cards = result.related_cards.cardnames
+                let upcoming_cards = result.upcoming_cards.cardnames
+
+                //updates the related cards
+                let parent_related_cards = document.querySelector('.related_cards_list')
+                parent_related_cards.innerHTML = ""
+                //console.log('what the fuck is happening')
+                print(related_cards)
+                for (var i = 0; i < related_cards.length; i++) {
+                    //console.log(related_cards[i])
+                    var list_item = document.createElement('li')
+                    list_item.className = "list-group-item list-group-item-action related_card";
+
+                    list_item.textContent = related_cards[i]
+
+                    parent_related_cards.append(list_item)
+
+                }
+
+                //updates the recommendations
+                let parent_recommended_cards = document.querySelector('.recommended_cards_list')
+                parent_recommended_cards.innerHTML = ""
+                //console.log('what the fuck is happening')
+                //print(upcoming_cards)
+                for (var i = 0; i < upcoming_cards.length; i++) {
+                    //console.log(related_cards[i])
+                    var list_item = document.createElement('li')
+                    list_item.className = "list-group-item list-group-item-action recommended_card";
+
+                    list_item.textContent = upcoming_cards[i]
+
+                    parent_recommended_cards.append(list_item)
+
+                }
+
+                //adds clickable functionality to the newly made lists
+                //select all related card items
+                const listItems = document.querySelectorAll('.related_card');
+
+                //add event listener to all list items
+                listItems.forEach(function (item) {
+                    item.addEventListener('click', function () {
+
+                        fetch('/getcard', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ 'cardname': item.textContent })
+                        }).then(response => {
+
+                            if (!response.ok) {
+                                return response.json().then(err => Promise.reject(err));
+                            }
+                            return response.json(); // Parse JSON if successful
+                        }).then(result => {
+                            console.log(result)
+                            //update selected card field
+                            document.getElementById('cardname').innerHTML = result.cardname;
+                            document.getElementById('cardtypes').innerHTML = result.types;
+                            document.getElementById('manacost').innerHTML = result.manacost;
+                            document.getElementById('cardtext').innerHTML = result.cardtext;
+                            document.getElementById('edhrec').innerHTML = result.edhrec;
+                        })
+                    });
+                });
+                //adds clickable functionality to the newly made lists
+                //select all related card items
+                const upcoming = document.querySelectorAll('.recommended_card');
+
+                //add event listener to all list items
+                upcoming.forEach(function (item) {
+                    item.addEventListener('click', function () {
+
+                        fetch('/getupcomingcard', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ 'cardname': item.textContent })
+                        }).then(response => {
+
+                            if (!response.ok) {
+                                return response.json().then(err => Promise.reject(err));
+                            }
+                            return response.json(); // Parse JSON if successful
+                        }).then(result => {
+                            console.log(result)
+                            //update selected card field
+                            document.getElementById('cardname').innerHTML = result.cardname;
+                            document.getElementById('cardtypes').innerHTML = result.types;
+                            document.getElementById('manacost').innerHTML = result.manaCost;
+                            document.getElementById('cardtext').innerHTML = result.cardtext;
+                            document.getElementById('edhrec').innerHTML = result.edhrec;
+                            document.getElementById('edhrecprediction').innerHTML = result.edhrec_predicted;
+                        })
+                    });
+                });
+
+
+            })
+        });
+
+        //select all related card items
+        const listItems = document.querySelectorAll('.related_card');
 
         //add event listener to all list items
         listItems.forEach(function (item) {
             item.addEventListener('click', function () {
-                alert('You selected: ' + item.textContent);
-
-                returnedCard = {
-                    'cardname': item.textContent,
-                    'cardtypes': 'Legendary Creature',
-                    'manacost': '{2}{W}{W}',
-                    'cardtext': 'you win the game',
-                    'edhrec': '545'
-                }
 
                 fetch('/getcard', {
                     method: 'POST',
@@ -94,10 +202,6 @@
                     document.getElementById('cardtext').innerHTML = result.cardtext;
                     document.getElementById('edhrecprediction').innerHTML = result.edhrec;
                 })
-
-
-
-
             });
         });
     });

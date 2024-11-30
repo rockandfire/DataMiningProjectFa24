@@ -43,6 +43,7 @@ def extract_text_perms(card):
 
 	return rule_phrases
 
+#card a and b use card indices not actual card values
 def get_similarity(card_a, card_b):
 	# print(set(rule_phrases[card_a]))
 	return len(set(rule_phrases[card_a]).intersection(set(rule_phrases[card_b]))) / len(rule_phrases[card_b])
@@ -118,6 +119,7 @@ def apriori(commander_name, clusters, cards):
 			for index in clusters[cluster_pos].index:
 
 				# get similarity between current card and each card already in deck
+				#print('calculating similarity')
 				card_similarity = get_similarity(card, index)
 				if card_similarity > max_similarity and index not in current_deck:
 					# print(card_similarity)
@@ -229,6 +231,10 @@ model = SimpleLinearRegression()
 model.fit(Xtrain, ytrain)
 preds = model.predict(Xval)
 
+#prints predicted values versus actual values
+for x in range(5):
+	print(f'predicted: {preds.iloc[x, 0]}, actual: {yval.iloc[x, 0]}')
+
 #performs K fold cross validation on linear regression model
 def k_fold_cross_validation(model, Xtrain, ytrain, k):
 
@@ -266,9 +272,26 @@ def k_fold_cross_validation(model, Xtrain, ytrain, k):
 	mean_accuracy = np.mean(accuracies)
 	return mean_accuracy
 
-#prints predicted values versus actual values
-for x in range(5):
-	print(f'predicted: {preds.iloc[x, 0]}, actual: {yval.iloc[x, 0]}')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 print("Total card count for commander legality: {}".format(len(cards.index)))
 
@@ -288,16 +311,25 @@ print("Total number of cards legal for deck: {}".format(len(cards.index)))
 rule_phrases = {}
 for i in cards.index:
 	rule_phrases[i] = extract_text_perms(cards.loc[i])
+print(f'len of rules prhases: {len(rule_phrases[97686])}')
 
 # Perform K-Means clustering for k clusters on cards
-clusters = k_means(12, cards)
+clusters = k_means(6, cards)
 
 # Print length of each cluster
 for i in range(len(clusters)):
 	print("Number of cards in cluster {}: {}".format(i, len(clusters[i])))
 
 # Generate rules of length 2 for deck
+print("SHAPE")
+print(cards.shape)
+print(cards.tail(3))
 rules_2, rules_3 = apriori(commander_name, clusters, cards)
+print("RAW RULES: ")
+print(rules_2)
+
+rules_2 = sorted(rules_2, key = lambda x:x[2], reverse=True)
+#print(rules_2)
 
 # Print each rule
 # for rule in rules_2:
@@ -313,3 +345,4 @@ mean_mse = k_fold_cross_validation(model, Xtrain, ytrain, 5)
 avg = np.mean(ytrain)
 print(f"MSE from k-fold cross-validation: {mean_mse}")
 print(f"average edhrec value of training data: {avg}")
+print(f'length of rule phrases: {len(rule_phrases)}')
