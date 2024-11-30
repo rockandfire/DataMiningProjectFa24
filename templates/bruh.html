@@ -1,10 +1,26 @@
 <head>
-    <script src="
-    https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.min.js
-    "></script>
-    <link href="
-    https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css
-    " rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .position-relative {
+            position: relative;
+        }
+        #commander_suggestions {
+            max-height: 200px;
+            overflow-y: auto;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            background-color: white;
+            border: 1px solid rgba(0,0,0,.125);
+        }
+        #commander_suggestions .list-group-item {
+            cursor: pointer;
+        }
+        #commander_suggestions .list-group-item:hover,
+        .list-group-item-action:hover {
+            background-color: #f8f9fa;
+            cursor: pointer;
+        }
+    </style>
 </head>
 
 <body>
@@ -12,16 +28,19 @@
         <div class="row">
             <div class="col-sm border">
                 <div>
-                    <h5>Current Picks</h3>
-                        <h4>Related Cards</h2>
+                    <h5>Current Picks</h5>
+                    <h4>Related Cards</h4>
                 </div>
 
                 <div class="row">
-                    <input type="text" class="form-control commander_input" id="commander_input"
-                        placeholder="commander name" />
-                    <button type="button" class="btn btn-primary commander_submit" id="commander_submit">submit</button>
+                    <div class="col position-relative">  <!-- Added this wrapper div -->
+                        <input type="text" class="form-control commander_input" id="commander_input"
+                            placeholder="commander name" />
+                        <div id="commander_suggestions" class="list-group" 
+                             style="position: absolute; z-index: 1000; width: 100%; max-height: 200px; overflow-y: auto; display: none; top: 100%; left: 0; box-shadow: 0 2px 5px rgba(0,0,0,0.2);"></div>
+                        <button type="button" class="btn btn-primary commander_submit" id="commander_submit">submit</button>
+                    </div>
                     <ul class="list-group related_cards_list" style="max-height: 500px;overflow:scroll;">
-                        
                     </ul>
                 </div>
             </div>
@@ -50,6 +69,69 @@
 </body>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        // Add auto-complete functionality
+        const commanderInput = document.querySelector('.commander_input');
+        const suggestionsList = document.getElementById('commander_suggestions');
+        let debounceTimeout;
+
+        commanderInput.addEventListener('input', function(e) {
+            clearTimeout(debounceTimeout);
+            
+            // Clear suggestions if input is empty
+            if (!e.target.value.trim()) {
+                suggestionsList.innerHTML = '';
+                return;
+            }
+            
+            // Debounce the API call to avoid too many requests
+            debounceTimeout = setTimeout(() => {
+                // Only search if we have at least 2 characters
+                if (e.target.value.length >= 2) {
+                    fetch('/search_commander', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ 'search': e.target.value })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Search response:', data);
+                        suggestionsList.innerHTML = '';
+                        
+                        if (data.commanders && data.commanders.length > 0) {
+                            suggestionsList.style.display = 'block';  // Show the suggestions
+                            
+                            data.commanders.forEach(commander => {
+                                const item = document.createElement('a');
+                                item.className = 'list-group-item list-group-item-action';
+                                item.textContent = commander;
+                                
+                                // Handle clicking on a suggestion
+                                item.addEventListener('click', function() {
+                                    commanderInput.value = commander;
+                                    suggestionsList.style.display = 'none';  // Hide after selection
+                                });
+                                
+                                suggestionsList.appendChild(item);
+                            });
+                        } else {
+                            suggestionsList.style.display = 'none';
+                        }
+                    });
+                } else {
+                    suggestionsList.innerHTML = '';
+                }
+            }, 300); // Wait 300ms after last keystroke before searching
+        });
+
+        // Close suggestions when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!commanderInput.contains(e.target) && !suggestionsList.contains(e.target)) {
+                suggestionsList.style.display = 'none';
+            }
+        });
+
         //Adds functionality to submit button for commander name
         const subCommander = document.querySelector('.commander_submit');
         subCommander.addEventListener('click', function (event) {
@@ -78,7 +160,8 @@
                 let parent_related_cards = document.querySelector('.related_cards_list')
                 parent_related_cards.innerHTML = ""
                 //console.log('what the fuck is happening')
-                print(related_cards)
+                //print(related_cards)
+                console.log(related_cards)
                 for (var i = 0; i < related_cards.length; i++) {
                     //console.log(related_cards[i])
                     var list_item = document.createElement('li')

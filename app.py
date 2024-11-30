@@ -46,4 +46,18 @@ def submit_commander():
 	returnObj = {'related_cards': related_cards,
 				 'upcoming_cards': upcoming_cards}
 	return jsonify(returnObj)
-	
+
+@app.route('/search_commander', methods=['POST'])
+def search_commander():
+    data = request.get_json()
+    search_term = data['search']
+    
+    # Just search for creatures for now
+    matching_creatures = mtg.df_cards[
+        (mtg.df_cards['name'].str.contains(search_term, case=False, na=False)) &
+        (mtg.df_cards['types'].str.contains('Creature', case=False, na=False))
+    ]
+    
+    # Return all matching creature names
+    matching_names = matching_creatures['name'].tolist()
+    return jsonify({'commanders': matching_names[:10]})
