@@ -35,7 +35,7 @@
                 <div class="row">
                     <div class="col position-relative">  <!-- Added this wrapper div -->
                         <input type="text" class="form-control commander_input" id="commander_input"
-                            placeholder="commander name" />
+                            placeholder="please enter commander name" />
                         <div id="commander_suggestions" class="list-group" 
                              style="position: absolute; z-index: 1000; width: 100%; max-height: 200px; overflow-y: auto; display: none; top: 100%; left: 0; box-shadow: 0 2px 5px rgba(0,0,0,0.2);"></div>
                         <button type="button" class="btn btn-primary commander_submit" id="commander_submit">submit</button>
@@ -217,6 +217,7 @@
                             document.getElementById('manacost').innerHTML = result.manacost;
                             document.getElementById('cardtext').innerHTML = result.cardtext;
                             document.getElementById('edhrec').innerHTML = result.edhrec;
+                            document.getElementById('edhrecprediction').innerHTML = 'N/a';
                         })
                     });
                 });
