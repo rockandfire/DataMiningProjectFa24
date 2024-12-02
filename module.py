@@ -88,17 +88,43 @@ class MTGProject:
         clustered_cards = []
         for i in range(k):
             
-            sum = 0
+            rank_sum = 0
             for index in assignments[i]:
-                sum += cards_in_k.loc[index]['edhrecRank']
+                rank_sum += cards_in_k.loc[index]['edhrecRank']
             
-            centroids[i] = sum / len(assignments[i])
+            centroids[i] = rank_sum / len(assignments[i])
             clustered_cards.append((centroids[i], assignments[i]))
         clustered_cards = sorted(clustered_cards, key=lambda x:x[0])
         
         df_clusters = []
         for cluster in clustered_cards:
             df_clusters.append(cards_in_k[cards_in_k.index.isin(cluster[1])])
+
+        # Internal performance analysis using SSE
+        sse_clusters = []
+        for cluster in clustered_cards:
+            sse = 0
+            for index in cluster[1]:
+                sse += math.pow(int(cards_in_k.loc[index]['edhrecRank']) - cluster[0], 2)
+            sse_clusters.append(sse)
+
+        print('SSE for each cluster: {}'.format(sse_clusters))
+
+        for i in range(len(sse_clusters)):
+            sse_clusters[i] = sse_clusters[i] - (sum(sse_clusters) / len(sse_clusters))
+        print('SSE Comparison against cluster average: {}'.format(sse_clusters))
+
+        sse_clusters = []
+        for i in range(len(clustered_cards) - 1):
+            dist_current = int(cards_in_k.loc[clustered_cards[i][1][-1]]['edhrecRank']) - clustered_cards[i][0]
+            dist_lower = int(cards_in_k.loc[clustered_cards[i][1][-1]]['edhrecRank']) - clustered_cards[i + 1][0]
+            sse_clusters.append((dist_current, dist_lower))
+
+        print('Distance of lowest ranked card from current centroid to next:')
+        
+        for i in range(len(sse_clusters)):
+            print('Cluster {}: {} vs. {}'.format(i, abs(sse_clusters[i][0]), abs(sse_clusters[i][1])))
+
         return df_clusters
     
 	#finds cards related to color identity of given commander
@@ -390,11 +416,13 @@ class MTGProject:
 
         return card
         
-
-
-
-
-
-    
-        
-
+mtg = MTGProject()
+commander_name = 'Grey Knight Paragon'
+commander_name = "Yuriko, the Tiger's Shadow"
+upcoming_card_name = "Shroudstomper"
+related_cards = mtg.get_related_cards(commander_name)
+#related_cards
+#t, t2 = mtg.compute_upcoming_recommendations(commander_name)
+mtg.compute_upcoming_recommendations(commander_name)
+mtg.get_upcoming_card_names()
+t = mtg.get_related_card_names()
