@@ -7,12 +7,14 @@ import random
 from LinearRegression import SimpleLinearRegression 
 import math
 
-#basically is converting this file to a class so that it's easier to deal with during gui runtime
+# Monolithic application class for easy access by frontend
 class MTGProject:
-    def __init__(self, upcoming_code = 'DSK'):
-		#initializes the cards 
 
-        #sets all cards to dataframe
+    # Initialize cards based on availability and set code
+    # Training and test data are stored in separate data frames
+    def __init__(self, upcoming_code = 'DSK'):
+		
+        # Preprocess main data frame to remove irrelevant cards
         cards = pd.read_csv('./cards.csv', low_memory=False)
         cards = cards[cards.availability.str.contains('paper')].drop_duplicates(subset='name', keep='last')
         cards = cards[~cards.types.str.contains('Land')]
@@ -22,12 +24,11 @@ class MTGProject:
 
         self.df_cards = cards
 
-        #splits the card into upcoming and current cards
+        # Split data frame into upcoming and current cards
         self.df_current_cards = cards[~cards['setCode'].str.contains(upcoming_code)]
         self.df_upcoming_cards = cards[cards['setCode'].str.contains(upcoming_code)]
-        #drops edhrec of cards
 
-        #intializes other variables for later functions
+        # Initializes other variables for later functions
         self.df_related_commander_cards = None
         self.clusters = None
         self.rule_phrases = []
@@ -37,22 +38,26 @@ class MTGProject:
         self.linear_model = None
         self.upcoming_cards_data = None
 
-	#gets card info from dataset
-	#mainly used for gui
+	# Returns card info from dataset
+	# Mainly used for GUI
     def get_card(self, cardname):
+
+        # Get entry matching card name
         row = self.df_cards.loc[self.df_cards['name'] == cardname].iloc[0]
-        #removes annoying \n in the text
+
+        # Removes annoying \n in the text
         card_text = row['text']
         card_text = card_text.replace('\\n', '- ')
-        #print(card_text)
 
+        # Store card info in a dict for easy access
         card = {
             'cardname': cardname,
             'types': row['types'],
             'manacost': row['manaCost'],
             'cardtext': card_text,
             'edhrec': row['edhrecRank'],
-            #this info is used for within class and not in gui
+
+            # This info is used for within class and not in GUI
             'setcode': row['setCode']
             } 
         return card
@@ -60,13 +65,19 @@ class MTGProject:
     # Perform K-Means clustering on the set of valid 
     # cards using EDHRec Rank to determine distance
     def k_means(self, k, cards_in_k):
-        centroids = []
 
+        # Declare empty centroid list and sort cards by EDHRec Rank
+        centroids = []
         edh_scores = sorted(cards_in_k['edhrecRank'].to_list())
 
-        # Maybe update to force into range of quarters of true range?
+        # Force pseudorandom centroid generation to 
         for i in range(k):
-            centroids.append(np.random.randint(edh_scores[(i * len(edh_scores)) // k] , edh_scores[(((i + 1) * len(edh_scores)) // k) - 1]))
+
+            # Prevent index out of bounds by assigning max bound on last cluster
+            max_range = edh_scores[(((i + 1) * len(edh_scores)) // k) - 1]
+            if i == k - 1:
+                max_range = max(edh_scores)
+            centroids.append(np.random.randint(edh_scores[(i * len(edh_scores)) // k], max_range))
 
         # Compute minimum distance for each card and assign accordingly
         assignments = []
@@ -74,28 +85,42 @@ class MTGProject:
             cluster = []
             assignments.append(cluster)
 
+        # Assign each card by storing its index in the data frame to a centroid
         for index in cards_in_k.index:
+
+            # Reset minimum distance each loop
             min_distance = sys.maxsize
             assigned_centroid_index = centroids.index(max(centroids))
 
+            # Compare card rank to each centroid to find distance
             for rank in centroids:
+
+                # Recompute min distance to find correct centroid
                 if abs(cards_in_k.loc[index]['edhrecRank'] - rank) < min_distance:
                     assigned_centroid_index = centroids.index(rank)
                     min_distance = abs(cards_in_k.loc[index]['edhrecRank'] - rank)
+            
+            # Assign card index to cluster based on result
             assignments[assigned_centroid_index].append(index)
 
         # Compute new centroids based on averages of cards in cluster
         clustered_cards = []
         for i in range(k):
             
+            # Compute average EDHRec Rank of cluster
             rank_sum = 0
             for index in assignments[i]:
                 rank_sum += cards_in_k.loc[index]['edhrecRank']
             
             centroids[i] = rank_sum / len(assignments[i])
+
+            # Store as tuple of centroid and assigned cards
             clustered_cards.append((centroids[i], assignments[i]))
+
+        # Sort clusters by centroid to move highly ranked cards to top of list
         clustered_cards = sorted(clustered_cards, key=lambda x:x[0])
         
+        # Create list of data frames containing each card
         df_clusters = []
         for cluster in clustered_cards:
             df_clusters.append(cards_in_k[cards_in_k.index.isin(cluster[1])])
@@ -103,72 +128,100 @@ class MTGProject:
         # Internal performance analysis using SSE
         sse_clusters = []
         for cluster in clustered_cards:
+
+            # Compute sum of squared error for each cluster
             sse = 0
             for index in cluster[1]:
                 sse += math.pow(int(cards_in_k.loc[index]['edhrecRank']) - cluster[0], 2)
             sse_clusters.append(sse)
 
+        # SSE is found to be a poor metric for performance due to 
+        # the highly scattered nature of the data paired with 
+        # the intention behind applying K Means to this stage of 
+        # the solution
         print('SSE for each cluster: {}'.format(sse_clusters))
 
+        # Print SSE per cluster (known large)
         for i in range(len(sse_clusters)):
             sse_clusters[i] = sse_clusters[i] - (sum(sse_clusters) / len(sse_clusters))
         print('SSE Comparison against cluster average: {}'.format(sse_clusters))
-
+        
+        # Rather than use SSE, compute distance of lowest ranked 
+        # card to centroid to measure performance. Aligns more 
+        # closely with the intended functionality, allowing 
+        # for simpler verification
         sse_clusters = []
         for i in range(len(clustered_cards) - 1):
             dist_current = int(cards_in_k.loc[clustered_cards[i][1][-1]]['edhrecRank']) - clustered_cards[i][0]
             dist_lower = int(cards_in_k.loc[clustered_cards[i][1][-1]]['edhrecRank']) - clustered_cards[i + 1][0]
             sse_clusters.append((dist_current, dist_lower))
 
+        # Print all distances to confirm item belongs in centroid 
         print('Distance of lowest ranked card from current centroid to next:')
         
         for i in range(len(sse_clusters)):
             print('Cluster {}: {} vs. {}'.format(i, abs(sse_clusters[i][0]), abs(sse_clusters[i][1])))
 
+        # Return data frames corresponding to clusters
         return df_clusters
     
-	#finds cards related to color identity of given commander
+	# Filters data frame for cards related to color identity of given Commander
     def filter_identity(self, commander_name):
-        #ease of use need to probably change this later
-        #cards = self.df_current_cards
-        cards = self.df_cards
 
+        # Perform string manipulation to determine color identity
+        cards = self.df_cards
         commander_identity = set(cards[cards.name == commander_name]['colorIdentity'].iloc[0].split(', '))
-        # Get all indices of compliant cards
+        
+        # Handle NaN (colorless) cards accordingly and perform
+        # set comparison to filter cards
         sum = 0
         indices = []
-
         for row in cards.index:
+
+            # Convert NaN to empty set
             if type(cards.loc[row]['colorIdentity']) is float:
                 identity = set()
+
+            # Otherwise, string manip to get color identity
             else:
                 identity = set(cards.loc[row]['colorIdentity'].split(', '))
+
+            # Add index to list if card identity is a subset of Commander colors
             if identity <= commander_identity:
                 indices.append(row)
                 sum += 1
 
-        valid_cards = cards[cards.index.isin(indices)]
-        return valid_cards
+        # Filter valid cards based on indices in color identity
+        return cards[cards.index.isin(indices)]
 	
-	
+	# For every term in card rules text, append 
+    # all phrases to a list for similarity (support)
+    # comparison
     def extract_text_perms(self, card):
-        # If any ability in the catalyst triggers an ability in the reagent
-        # append the pair of indices to the edge list
+
+        # Split abilities based on newline character
         rules = card['text'].replace('\\n', ' ')
-        # For each rule, split each word and find all combinations of rules text in order.
+
+        # For each rule, split each word and 
+        # find all in-order combinations of rules text
         rule_phrases = []
         rule_components = rules.lower().strip().replace(',', '').replace('.', '').replace(':', '').split(' ')
 
-        # For each word in parsed phrase, join next j words until end of phrase
+        # For each word in parsed phrase, 
+        # join next j words until end of phrase
         for i in range(len(rule_components)):
             for j in range(i + 1, len(rule_components) + 1):
                 rule_phrases.append(" ".join(rule_components[i:j]))
 
+        # Return list of all phrases for given card
         return rule_phrases
     
-    #card a and b use card indices not actual card values
+    # Given a pair of cards, access their 
+    # dict entry for extracted phrases
+    # to obtain their similarity (support)
     def get_similarity(self, card_a, card_b):
-        # print(set(rule_phrases[card_a]))
+
+        # Return simple set intersection of rule phrases
         return len(set(self.rule_phrases[card_a]).intersection(set(self.rule_phrases[card_b]))) / len(self.rule_phrases[card_b])
     
 
