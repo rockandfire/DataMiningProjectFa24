@@ -227,8 +227,8 @@ class MTGProject:
 
     # Take a list of dataframes containing cards clustered based 
     # on EDHRec rank. Starting with the most competitive cards, 
-    # perform modified Apriori until the threshold of 63 cards
-    # is met. The remaining 37 cards will be basic lands
+    # perform modified Apriori until the threshold of ~63 cards
+    # is met. The remaining ~37 cards will be basic lands
     def apriori(self, commander_name, clusters, cards):    
 
         # Iterate over each cluster until length requirement is met
@@ -240,8 +240,8 @@ class MTGProject:
         sim_card = [cards[cards.name == commander_name].index[0]]
         similarities = [1]
         while cluster_pos < len(clusters) and len(current_deck) < 63:
-            # Compute similarity of a given card to each card in list
-            # Grab given card
+
+            # Compute similarity of a given card to each card in top list
             for card in current_deck[:(len(current_deck) // 50) + 1]:
                 # Get average similarity across list?
                 max_similarity = -1
@@ -255,74 +255,89 @@ class MTGProject:
                         max_similarity = card_similarity 
                         max_index_a = card
                         max_index_b = index
-                
-            if len(current_deck) > 63:
+            
+            # Break out when deck length limit met
+            if len(current_deck) >= 63:
                 break
-
+            
+            # Update all lists
             sim_card.append(max_index_a)
             current_deck.append(max_index_b)
             similarities.append(max_similarity)
 
+            # Check if maximally similar card is the last card in
+            # cluster. If so, move to next cluster
             if max_index_b == clusters[cluster_pos].index[-1]:
                 cluster_pos += 1
 
+        # Store generated rules in a tuple containing cards, support, and EDHRec of newly included card
         rules = []
         for i in range(len(current_deck)):
             rules.append((sim_card[i], current_deck[i], similarities[i], cards.loc[current_deck[i]]['edhrecRank']))
 
+        # Sort rules based on EDHRec
         rules_2 = sorted(rules, key=lambda x:x[3])
 
-        # Using rules of size 2, generate rules of size 3 and calculate support (similarity) and confidence
-        
+        # Using rules of size 2, generate rules of size 3 
+        # and calculate support (similarity) and confidence
         rules = []
+
+        # Similar to rules_2 generation, find maximally similar rule
+        # that is distinct from input card
         for card in current_deck:
             max_similarity = -1
             max_index_a = sys.maxsize
             max_index_b = sys.maxsize
             for rule in rules_2:	
+
                 # Get max similarity of card to either card in rule
                 card_similarity = self.get_similarity(rule[0], card)
                 if card_similarity > max_similarity and rule[0] != card and rule[1] != card:
-                    # print(card_similarity)
                     max_similarity = card_similarity 
                     max_index_a = rule[0]
                     max_index_b = rule[1]
                     rule_2_similarity = rule[2]
-            # Find denom for support by getting number of rules_2 drawn using rule[0] 
+
+            # Find denominator for support by getting 
+            # number of occurrences of first card 
+            # in list
             denominator = 0
             for compared_card in sim_card:
                 if compared_card == max_index_a:
                     denominator += 1
 
-            # print((card_similarity * len(self.rule_phrases[card])))
-            # print((rule_2_similarity * len(self.rule_phrases[rule[0]])))
-            # Take sum of rule similarity and max / denom
+            # Take sum of rule similarity and max / denominator
             support_3 = (card_similarity + rule_2_similarity) / denominator
 
-            # Take sum of rule similarity and max / similarity to compute confidence for 3
+            # Take sum of rule similarity and max / similarity 
+            # to compute confidence for rules of size 3
             confidence = ((card_similarity + rule_2_similarity) / rule_2_similarity) / len(self.rule_phrases[max_index_a])
             rules.append((max_index_a, max_index_b, card, support_3, confidence, cards.loc[card]['edhrecRank']))
 
+        # Sort rules based on confidence
         rules_3 = sorted(rules, key=lambda x:x[4], reverse=True)
 
+        # Print top ten confidence scores
         print("Top Ten Confidence Scores:")
         for rule in rules_3[:10]:
             print('Cards: {}, {}, {} Support: {} Confidence: {}'.format(cards.loc[rule[0]]['name'], cards.loc[rule[1]]['name'], cards.loc[rule[2]]['name'], rule[3], rule[4]))
 
+        # Return all rules generated
         return rules_2, rules_3
     
-    #gets related cards with given commander
+    # Return related cards using given Commander
     def get_related_cards(self, commander_name, n_clusters = 6):
+
+        # Filter for color identity and print number of legal cards
         comm_cards = self.filter_identity(commander_name)
         self.df_related_commander_cards = comm_cards
         print("Total number of cards legal for deck: {}".format(len(self.df_related_commander_cards.index)))
 
-        # Extract all rules phrases for apriori comparison
+        # Extract all rules phrases for Apriori comparison
         rule_phrases = {}
         for i in self.df_cards.index:
             rule_phrases[i] = self.extract_text_perms(self.df_cards.loc[i])
         self.rule_phrases = rule_phrases
-
 
         # Perform K-Means clustering for k clusters on cards
         clusters = self.k_means(n_clusters, comm_cards)
@@ -331,98 +346,98 @@ class MTGProject:
             print("Number of cards in cluster {}: {}".format(i, len(clusters[i])))
 
         # Generate rules of length 2 for deck
-        #rules_2 is tuple with card in deck, recommended card, similarity score, edhrec
+        #rules_2 is tuple with card in deck, recommended card, similarity (support) score, EDHRec
         rules_2, rules_3 = self.apriori(commander_name, clusters, comm_cards)
 
-        #sorts rules 2 in descending based on similarity score
+        # Sorts rules 2 in descending order based on similarity (support) score
         rules_2 = sorted(rules_2, key = lambda x:x[2], reverse=True)
 
-        #slices dataframe into related cards df and saves it to class
+        # Slices data frame into related cards df and saves it to class
         rules_2 = np.array(rules_2)
         sim_card_indices = rules_2[:, 1]
         related_cards = self.df_current_cards.loc[sim_card_indices, :]
-        #adds siim score to the dataframe
+
+        # Adds sim score to the data frame
         related_cards['sim_score'] = rules_2[:, 2]
-        #saves related cards to class and drops commander
+
+        # Saves related cards to class and drops Commander
         related_cards = related_cards.iloc[1:].reset_index(drop=True)
-        
         self.df_related_cards = related_cards
 
+        # Return related cards
         return related_cards
     
-    #trains and sets the linear regression model
+    # Trains and sets the linear regression model
     def train_linear_model(self):
         model = SimpleLinearRegression()
-        #grabs edhrec and sim scores of related cards and trains the mdoel on them
+
+        # Returns EDHRec and similarity (support) scores 
+        # of related cards and trains the model on them
         df_edhrec = np.array(self.df_related_cards['edhrecRank'].tolist())
         df_sim_scores = np.array(self.df_related_cards['sim_score'].tolist())
-        
-        #df_edhrec = df_edhrec[1:]
-        #df_sim_scores = df_sim_scores[1:]
-
-
         model.fit(df_sim_scores, df_edhrec)
 
         self.linear_model = model
         return model
 
         
-    #computes the upcomming recommended cards
-    #also sets the upcomming cards to the class
+    # Computes the upcoming recommended cards
+    # Also sets the upcoming cards to the class
     def compute_upcoming_recommendations(self, commander_name, max_cards = 10):
-        #gets similarity score of upcomming cards to commander
+
+        # Returns similarity score of upcoming cards to commander
         current_deck = [self.df_cards[self.df_cards.name == commander_name].index[0]]
         sim_card = [self.df_cards[self.df_cards.name == commander_name].index[0]]
         similarities = [1]
+
+        # Obtain rules for cards not in training data
+        # but similar to Commander (Upcoming cards)
         while len(current_deck) < 63:
+
+            # Find maximally similar card to display from test data
             for card_a in current_deck[:(len(current_deck) // 50) + 1]:
-                # Get average similarity across list?
                 max_similarity = -1
                 max_index_a = sys.maxsize
                 max_index_b = sys.maxsize
                 for index, card_b in self.df_upcoming_cards.iterrows():
                     card_similarity = self.get_similarity(card_a, index)
                     if card_similarity > max_similarity and index not in current_deck:
-                        # print(card_similarity)
                         max_similarity = card_similarity 
                         max_index_a = card_a
                         max_index_b = index
-                # Append support with max indices
-                # Compute confidence by stringing together a pair 
-                # with the card containing next highest support value, 
-                # then compute standard support
 			
+            # Break before appending last card
             if len(current_deck) > 63:
                 break
+            
+            # Append rules to list
             sim_card.append(max_index_a)
             current_deck.append(max_index_b)
             similarities.append(max_similarity)
 
+        # Create tuple of rules
         rules = []
         for i in range(len(current_deck)):
             rules.append((sim_card[i], current_deck[i], similarities[i], self.df_cards.loc[current_deck[i]]['edhrecRank']))
 
-        #sorts rules based on similarity and removes commander from it
+        # Sort rules based on similarity and removes Commander
         rules = sorted(rules, key = lambda x:x[2], reverse=True)
         rules = rules[1:]
 
-        #slices sorted indices
+        # Slices sorted indices
         upcoming_indices = np.array([x[1] for x in rules])
 
-        #trains linear model for edhrec prediction
+        # Trains linear model for edhrec prediction
         lnr_model = self.train_linear_model()
 
-        #adds associated card data in order to a list of tuples
+        # Adds associated card data in order to a list of tuples
         upcoming_cards_data = []
-        #list goes: index, card name, colorIdentity, types, text, similarity score, edhrecActual, edhrecPrediction
+        # List structure: index, card name, colorIdentity, 
+        # types, text, similarity score, edhrecActual, edhrecPrediction
         counter = 0
         for comm_index, card_index, sim_score, edhrec in rules:
             row = self.df_upcoming_cards.loc[card_index]
-            #print(row['name'])
-
             predicted_edhrec = lnr_model.predict(sim_score)
-            #print(f'predicted edhrec: {edhrec}')
-            #print(f'actual: {predicted_edhrec}\n')
             upcoming_cards_data.append((card_index, row['name'], row['manaCost'], row['types'], row['text'], sim_score, row['edhrecRank'], predicted_edhrec))
             counter = counter + 1
             if counter > max_cards:
@@ -430,29 +445,34 @@ class MTGProject:
         self.upcoming_cards_data = upcoming_cards_data
         return upcoming_cards_data
     
-    #gets upcoming card names for gui
+    # Returns upcoming card names for GUI
     def get_upcoming_card_names(self):
         cardnames = [row[1] for row in self.upcoming_cards_data]
         return {'cardnames': cardnames}
     
-    #gets related card names for gui
+    # Returns related card names for GUI
     def get_related_card_names(self):
         cardnames = self.df_related_cards['name'].tolist()
         return {'cardnames': cardnames}
     
+    # Return data related to an upcoming card
     def get_upcoming_card_data(self, cardname):
-        #fixes nans
+
+        # Replace NaN with readable value
         updated_data = [
             tuple('manaCost not found' if (isinstance(x, float) and math.isnan(x)) else x for x in row)
             for row in self.upcoming_cards_data]
         df_cards = pd.DataFrame(updated_data)
         df_cards.columns = ['card_index', 'name', 'manaCost', 'types', 'text', 'sim_score', 'edhrecRank', 'edhrecRank_prediction']
 
+        # Return entry corresponding to card name
         row = df_cards[df_cards['name'] == cardname].iloc[0]
 
+        # Properly format card rules text for GUI display
         card_text = row['text']
         card_text = card_text.replace('\\n', '- ')
 
+        # Store values in dict
         card = {
             'cardname': cardname,
             'types': row['types'],
@@ -467,13 +487,14 @@ class MTGProject:
 
         return card
         
+# Main method for CLI testing, for GUI
+# start Flask server with:
+# python3 -m flask --app app run
 mtg = MTGProject()
 commander_name = 'Grey Knight Paragon'
 commander_name = "Yuriko, the Tiger's Shadow"
 upcoming_card_name = "Shroudstomper"
 related_cards = mtg.get_related_cards(commander_name)
-#related_cards
-#t, t2 = mtg.compute_upcoming_recommendations(commander_name)
 mtg.compute_upcoming_recommendations(commander_name)
 mtg.get_upcoming_card_names()
 t = mtg.get_related_card_names()
