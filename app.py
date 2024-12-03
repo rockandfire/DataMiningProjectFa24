@@ -11,11 +11,7 @@ mtg = MTGProject()
 
 @app.route("/")
 def hello_world():
-	return render_template('bruh.html')
-
-@app.route('/bruh')
-def bruh():
-	return render_template('bruh.html')
+	return render_template('main.html')
 
 
 @app.route('/getcard', methods = ['POST'])

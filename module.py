@@ -490,11 +490,11 @@ class MTGProject:
 # Main method for CLI testing, for GUI
 # start Flask server with:
 # python3 -m flask --app app run
-mtg = MTGProject()
-commander_name = 'Grey Knight Paragon'
-commander_name = "Yuriko, the Tiger's Shadow"
-upcoming_card_name = "Shroudstomper"
-related_cards = mtg.get_related_cards(commander_name)
-mtg.compute_upcoming_recommendations(commander_name)
-mtg.get_upcoming_card_names()
-t = mtg.get_related_card_names()
+# mtg = MTGProject()
+# commander_name = 'Grey Knight Paragon'
+# commander_name = "Yuriko, the Tiger's Shadow"
+# upcoming_card_name = "Shroudstomper"
+# related_cards = mtg.get_related_cards(commander_name)
+# mtg.compute_upcoming_recommendations(commander_name)
+# mtg.get_upcoming_card_names()
+# t = mtg.get_related_card_names()
