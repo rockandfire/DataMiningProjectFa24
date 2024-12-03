@@ -183,8 +183,6 @@ class MTGProject:
         # Select the single candidate with the highest average support 
         # among all cards in current deck, then continue
         cluster_pos = 0
-        # commander_index = cards[cards.name == commander_name].index[0]
-        # commander_similarity = 
         current_deck = [cards[cards.name == commander_name].index[0]]
         sim_card = [cards[cards.name == commander_name].index[0]]
         similarities = [1]
@@ -201,14 +199,9 @@ class MTGProject:
                     # get similarity between current card and each card already in deck
                     card_similarity = self.get_similarity(card, index)
                     if card_similarity > max_similarity and index not in current_deck:
-                        # print(card_similarity)
                         max_similarity = card_similarity 
                         max_index_a = card
                         max_index_b = index
-                # Append support with max indices
-                # Compute confidence by stringing together a pair 
-                # with the card containing next highest support value, 
-                # then compute standard support
                 
             if len(current_deck) > 63:
                 break
@@ -216,10 +209,9 @@ class MTGProject:
             sim_card.append(max_index_a)
             current_deck.append(max_index_b)
             similarities.append(max_similarity)
-                # print(len(current_deck))
+
             if max_index_b == clusters[cluster_pos].index[-1]:
                 cluster_pos += 1
-        # print(max(candidate_cards, key=lambda item: item[0]), cards.loc[max(candidate_cards, key=lambda item: item[0])[1]])
 
         rules = []
         for i in range(len(current_deck)):
@@ -236,27 +228,33 @@ class MTGProject:
             max_index_b = sys.maxsize
             for rule in rules_2:	
                 # Get max similarity of card to either card in rule
-                card_similarity = self.get_similarity(rule[1], card)
-                if card_similarity > max_similarity:
+                card_similarity = self.get_similarity(rule[0], card)
+                if card_similarity > max_similarity and rule[0] != card and rule[1] != card:
                     # print(card_similarity)
                     max_similarity = card_similarity 
                     max_index_a = rule[0]
                     max_index_b = rule[1]
                     rule_2_similarity = rule[2]
-            # Find denom for support by taking average similarity for included over entire deck
-            sum = 0
-            for included_card in current_deck:
-                sum += self.get_similarity(included_card, card)
-            denom = sum / len(current_deck)
+            # Find denom for support by getting number of rules_2 drawn using rule[0] 
+            denominator = 0
+            for compared_card in sim_card:
+                if compared_card == max_index_a:
+                    denominator += 1
 
+            # print((card_similarity * len(self.rule_phrases[card])))
+            # print((rule_2_similarity * len(self.rule_phrases[rule[0]])))
             # Take sum of rule similarity and max / denom
-            support_3 = (card_similarity + rule_2_similarity) / denom
+            support_3 = (card_similarity + rule_2_similarity) / denominator
 
             # Take sum of rule similarity and max / similarity to compute confidence for 3
-            confidence = (card_similarity + rule_2_similarity) / rule_2_similarity
-            rules.append((rule[0], rule[1], card, support_3, confidence, cards.loc[card]['edhrecRank']))
+            confidence = ((card_similarity + rule_2_similarity) / rule_2_similarity) / len(self.rule_phrases[max_index_a])
+            rules.append((max_index_a, max_index_b, card, support_3, confidence, cards.loc[card]['edhrecRank']))
 
-        rules_3 = sorted(rules, key=lambda x:x[5])
+        rules_3 = sorted(rules, key=lambda x:x[4], reverse=True)
+
+        print("Top Ten Confidence Scores:")
+        for rule in rules_3[:10]:
+            print('Cards: {}, {}, {} Support: {} Confidence: {}'.format(cards.loc[rule[0]]['name'], cards.loc[rule[1]]['name'], cards.loc[rule[2]]['name'], rule[3], rule[4]))
 
         return rules_2, rules_3
     
@@ -379,7 +377,7 @@ class MTGProject:
         self.upcoming_cards_data = upcoming_cards_data
         return upcoming_cards_data
     
-    #gets upcomming card names for gui
+    #gets upcoming card names for gui
     def get_upcoming_card_names(self):
         cardnames = [row[1] for row in self.upcoming_cards_data]
         return {'cardnames': cardnames}
